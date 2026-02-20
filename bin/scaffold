@@ -1,10 +1,24 @@
 #!/usr/bin/env bash
-# scaffold - main dispatcher
+# =============================================================================
+# scaffold - Main dispatcher script
+# =============================================================================
+# Routes commands to the appropriate library scripts.
+# This is the entry point for the scaffold CLI tool.
+#
+# Usage: scaffold <command> [options]
+# Commands:
+#   init        - Bootstrap AWS resources and GitHub Actions workflows
+#   destroy     - Destroy Terraform-managed infrastructure (keeps platform)
+#   uninstall   - Remove ALL Scaffold resources including platform
+#   version     - Print version information
+# =============================================================================
 
 set -euo pipefail
 
+# Determine the root directory of the scaffold installation
 SCAFFOLD_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# Route commands to their respective handlers in the lib directory
 case "${1:-}" in
   init)      exec "$SCAFFOLD_ROOT/lib/init.sh" "${@:2}" ;;
   destroy)   exec "$SCAFFOLD_ROOT/lib/destroy.sh" "${@:2}" ;;

@@ -1,49 +1,83 @@
+# =============================================================================
+# workflow.yaml - GitHub Actions Workflow Template
+# =============================================================================
+# This workflow runs Terraform plan and apply for the specified environment.
+# It uses OIDC for passwordless AWS authentication (no stored credentials).
+#
+# Workflow triggers:
+#   - Push to the configured branch (e.g., main, develop)
+#   - Changes to files in the watch directory (e.g., infra/production/**)
+#   - Manual workflow dispatch
+#
+# Key features:
+#   - OIDC authentication with AWS
+#   - Remote state storage in S3
+#   - State locking with DynamoDB
+#   - Plan on every push, apply only on main branch
+# =============================================================================
+
 name: "Terraform · {{ENV_NAME}}"
 
+# Trigger workflow on push to the specified branch and watch directory
 on:
   push:
     branches:
-      - {{BRANCH}}
+      - {{BRANCH}}                     # Only trigger on pushes to this branch
     paths:
-      - "{{WATCH_DIR}}/**"
-  workflow_dispatch:
+      - "{{WATCH_DIR}}/**"            # Only when files in this directory change
+  workflow_dispatch:                   # Allow manual triggering
 
+# Required permissions for OIDC authentication
+# id-token: write - allows requesting OIDC tokens
+# contents: read - allows checking out code
 permissions:
   id-token: write   # Required for OIDC
   contents: read
 
+# Environment variables passed to steps
 env:
-  TF_BUCKET:     "{{S3_BUCKET}}"
-  TF_LOCK_TABLE: "{{DYNAMO_TABLE}}"
-  AWS_REGION:    "{{AWS_REGION}}"
-  TF_STATE_KEY:  "{{STATE_KEY}}"
-  ROLE_ARN:      "{{ROLE_ARN}}"
+  TF_BUCKET:     "{{S3_BUCKET}}"      # S3 bucket for state storage
+  TF_LOCK_TABLE: "{{DYNAMO_TABLE}}"    # DynamoDB table for state locking
+  AWS_REGION:    "{{AWS_REGION}}"      # AWS region
+  TF_STATE_KEY:  "{{STATE_KEY}}"      # S3 key for this environment's state
+  ROLE_ARN:      "{{ROLE_ARN}}"       # IAM role to assume for AWS access
 
 jobs:
   terraform:
     name: "Plan & Apply · {{ENV_NAME}}"
     runs-on: ubuntu-latest
+    # GitHub Environment for additional security (approvals, etc.)
     environment: {{ENV_NAME}}
 
     defaults:
       run:
-        working-directory: {{WATCH_DIR}}
+        working-directory: {{WATCH_DIR}}  # Run terraform commands in this directory
 
     steps:
-      # ── Checkout ────────────────────────────────────────────────────────────
+      # ==========================================================================
+      # Step 1: Checkout Repository
+      # ==========================================================================
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ── AWS Credentials via OIDC ─────────────────────────────────────────────
+      # ==========================================================================
+      # Step 2: Configure AWS Credentials via OIDC
+      # ==========================================================================
+      # Uses GitHub's OIDC provider to obtain temporary AWS credentials
+      # This avoids storing AWS keys in GitHub secrets
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume:       ${{ env.ROLE_ARN }}
-          role-session-name:    GitHubActions-{{ENV_NAME}}-${{ github.run_id }}
-          aws-region:           ${{ env.AWS_REGION }}
-          role-duration-seconds: 3600
+          role-to-assume:       ${{ env.ROLE_ARN }}          # Role to assume
+          role-session-name:    GitHubActions-{{ENV_NAME}}-${{ github.run_id }}  # Session name for CloudTrail
+          aws-region:           ${{ env.AWS_REGION }}        # AWS region
+          role-duration-seconds: 3600                         # Credentials valid for 1 hour
 
-      # ── Debug OIDC sub claim (helpful for troubleshooting trust policy) ─────
+      # ==========================================================================
+      # Step 3: Debug OIDC Subject Claim
+      # ==========================================================================
+      # Useful for troubleshooting OIDC trust policy issues
+      # Shows the actual sub claim that GitHub sends to AWS
       - name: Debug OIDC sub claim
         run: |
           echo "GITHUB_REF=$GITHUB_REF"
@@ -52,13 +86,19 @@ jobs:
           echo "GITHUB_WORKFLOW=$GITHUB_WORKFLOW"
           echo "Expected sub: repo:${{ github.repository }}:ref:${{ github.ref }}"
 
-      # ── Setup Terraform ───────────────────────────────────────────────────────
+      # ==========================================================================
+      # Step 4: Setup Terraform
+      # ==========================================================================
+      # Install the specified version of Terraform
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "~> 1.7"
 
-      # ── Terraform Init ────────────────────────────────────────────────────────
+      # ==========================================================================
+      # Step 5: Terraform Initialize
+      # ==========================================================================
+      # Configure the S3 backend with bucket, key, region, and DynamoDB locking
       - name: Terraform init
         run: |
           terraform init \
@@ -68,11 +108,18 @@ jobs:
             -backend-config="dynamodb_table=${{ env.TF_LOCK_TABLE }}" \
             -backend-config="encrypt=true"
 
-      # ── Terraform Validate ────────────────────────────────────────────────────
+      # ==========================================================================
+      # Step 6: Terraform Validate
+      # ==========================================================================
+      # Check that the configuration is valid (syntax, providers, etc.)
       - name: Terraform validate
         run: terraform validate
 
-      # ── Terraform Plan ─────────────────────────────────────────────────────────
+      # ==========================================================================
+      # Step 7: Terraform Plan
+      # ==========================================================================
+      # Generate an execution plan to see what resources will be created/modified/destroyed
+      # exitcode 0 = no changes, 1 = error, 2 = changes pending
       - name: Terraform plan
         run: |
           terraform plan \
@@ -82,13 +129,20 @@ jobs:
         continue-on-error: true
         id: plan
 
+      # Check if plan failed (exitcode 1)
       - name: Check plan result
         if: steps.plan.outputs.exitcode == '1'
         run: |
           echo "Terraform plan failed"
           exit 1
 
-      # ── Terraform Apply (push to main-equivalent branch only) ─────────────────
+      # ==========================================================================
+      # Step 8: Terraform Apply
+      # ==========================================================================
+      # Only apply when:
+      #   1. Pushing to the main/trigger branch (not feature branches)
+      #   2. There are changes to apply (exitcode 2 = changes pending)
+      # This prevents accidental applies from feature branch pushes
       - name: Terraform apply
         if: github.ref == 'refs/heads/{{BRANCH}}' && steps.plan.outputs.exitcode == '2'
         run: terraform apply tfplan

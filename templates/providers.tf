@@ -1,3 +1,16 @@
+# =============================================================================
+# providers.tf - Terraform Provider and Backend Configuration
+# =============================================================================
+# This file configures:
+#   - Required Terraform and provider versions
+#   - AWS provider configuration
+#   - S3 backend for remote state storage
+#
+# IMPORTANT: The backend block is empty because configuration is supplied
+# via -backend-config flags when running terraform init. This is necessary
+# because the actual bucket/table names are determined at init time.
+# =============================================================================
+
 terraform {
   required_version = ">= 1.7.0"
   required_providers {
@@ -13,10 +26,12 @@ terraform {
   backend "s3" {}
 }
 
+# Configure the AWS provider with the specified region
 provider "aws" {
   region = var.aws_region
 }
 
+# Variable for AWS region (default can be overridden at runtime)
 variable "aws_region" {
   description = "AWS region for resources"
   type        = string
