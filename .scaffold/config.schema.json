@@ -1,0 +1,76 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Scaffold Config",
+  "description": "Tracks all resources created by scaffold init",
+  "type": "object",
+  "required": ["version", "repo", "aws_region", "s3_bucket", "dynamodb_table", "iam_role", "environments"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Config schema version",
+      "example": "1"
+    },
+    "repo": {
+      "type": "string",
+      "description": "GitHub repository in org/repo format",
+      "example": "my-org/my-app"
+    },
+    "aws_region": {
+      "type": "string",
+      "description": "AWS region where platform resources live",
+      "example": "us-east-1"
+    },
+    "s3_bucket": {
+      "type": "string",
+      "description": "S3 bucket name for Terraform state (shared across envs)",
+      "example": "tf-state-my-app-a1b2c3d4"
+    },
+    "dynamodb_table": {
+      "type": "string",
+      "description": "DynamoDB table name for state locking",
+      "example": "tf-lock-my-app-a1b2c3d4"
+    },
+    "iam_role": {
+      "type": "string",
+      "description": "Base IAM role name (suffixed per-env for multi-env setups)",
+      "example": "github-actions-my-app"
+    },
+    "environments": {
+      "type": "array",
+      "description": "List of environments managed by scaffold",
+      "items": {
+        "type": "object",
+        "required": ["name", "watch_dir", "branch"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Environment name (e.g. staging, production)",
+            "example": "staging"
+          },
+          "watch_dir": {
+            "type": "string",
+            "description": "Terraform source directory watched for changes",
+            "example": "infra/staging"
+          },
+          "branch": {
+            "type": "string",
+            "description": "Git branch that triggers the workflow",
+            "example": "develop"
+          }
+        }
+      }
+    }
+  },
+  "example": {
+    "version": "1",
+    "repo": "my-org/my-app",
+    "aws_region": "us-east-1",
+    "s3_bucket": "tf-state-my-app-a1b2c3d4",
+    "dynamodb_table": "tf-lock-my-app-a1b2c3d4",
+    "iam_role": "github-actions-my-app",
+    "environments": [
+      { "name": "staging",    "watch_dir": "infra/staging",    "branch": "develop" },
+      { "name": "production", "watch_dir": "infra/production", "branch": "main"    }
+    ]
+  }
+}

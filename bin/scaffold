@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# scaffold - main dispatcher
+
+set -euo pipefail
+
+SCAFFOLD_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+case "${1:-}" in
+  init)      exec "$SCAFFOLD_ROOT/lib/init.sh" "${@:2}" ;;
+  destroy)   exec "$SCAFFOLD_ROOT/lib/destroy.sh" "${@:2}" ;;
+  uninstall) exec "$SCAFFOLD_ROOT/lib/uninstall.sh" "${@:2}" ;;
+  version)   echo "scaffold 1.0.0" ;;
+  *)
+    echo "Usage: scaffold {init|destroy|uninstall|version}"
+    echo ""
+    echo "Commands:"
+    echo "  init        Bootstrap AWS resources and GitHub Actions workflows"
+    echo "  destroy     Destroy Terraform-managed infrastructure (keeps platform)"
+    echo "  uninstall   Remove ALL Scaffold resources including platform"
+    echo "  version     Print version"
+    exit 1
+    ;;
+esac

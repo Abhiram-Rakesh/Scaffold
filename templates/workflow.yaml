@@ -1,0 +1,94 @@
+name: "Terraform · {{ENV_NAME}}"
+
+on:
+  push:
+    branches:
+      - {{BRANCH}}
+    paths:
+      - "{{WATCH_DIR}}/**"
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # Required for OIDC
+  contents: read
+
+env:
+  TF_BUCKET:     "{{S3_BUCKET}}"
+  TF_LOCK_TABLE: "{{DYNAMO_TABLE}}"
+  AWS_REGION:    "{{AWS_REGION}}"
+  TF_STATE_KEY:  "{{STATE_KEY}}"
+  ROLE_ARN:      "{{ROLE_ARN}}"
+
+jobs:
+  terraform:
+    name: "Plan & Apply · {{ENV_NAME}}"
+    runs-on: ubuntu-latest
+    environment: {{ENV_NAME}}
+
+    defaults:
+      run:
+        working-directory: {{WATCH_DIR}}
+
+    steps:
+      # ── Checkout ────────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── AWS Credentials via OIDC ─────────────────────────────────────────────
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume:       ${{ env.ROLE_ARN }}
+          role-session-name:    GitHubActions-{{ENV_NAME}}-${{ github.run_id }}
+          aws-region:           ${{ env.AWS_REGION }}
+          role-duration-seconds: 3600
+
+      # ── Debug OIDC sub claim (helpful for troubleshooting trust policy) ─────
+      - name: Debug OIDC sub claim
+        run: |
+          echo "GITHUB_REF=$GITHUB_REF"
+          echo "GITHUB_REPOSITORY=$GITHUB_REPOSITORY"
+          echo "GITHUB_ACTOR=$GITHUB_ACTOR"
+          echo "GITHUB_WORKFLOW=$GITHUB_WORKFLOW"
+          echo "Expected sub: repo:${{ github.repository }}:ref:${{ github.ref }}"
+
+      # ── Setup Terraform ───────────────────────────────────────────────────────
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.7"
+
+      # ── Terraform Init ────────────────────────────────────────────────────────
+      - name: Terraform init
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ env.TF_BUCKET }}" \
+            -backend-config="key=${{ env.TF_STATE_KEY }}" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="dynamodb_table=${{ env.TF_LOCK_TABLE }}" \
+            -backend-config="encrypt=true"
+
+      # ── Terraform Validate ────────────────────────────────────────────────────
+      - name: Terraform validate
+        run: terraform validate
+
+      # ── Terraform Plan ─────────────────────────────────────────────────────────
+      - name: Terraform plan
+        run: |
+          terraform plan \
+            -var="aws_region=${{ env.AWS_REGION }}" \
+            -out=tfplan \
+            -detailed-exitcode
+        continue-on-error: true
+        id: plan
+
+      - name: Check plan result
+        if: steps.plan.outputs.exitcode == '1'
+        run: |
+          echo "Terraform plan failed"
+          exit 1
+
+      # ── Terraform Apply (push to main-equivalent branch only) ─────────────────
+      - name: Terraform apply
+        if: github.ref == 'refs/heads/{{BRANCH}}' && steps.plan.outputs.exitcode == '2'
+        run: terraform apply tfplan
