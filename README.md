@@ -29,7 +29,7 @@ scaffold init
 
 ```bash
 # 1. Install
-git clone https://github.com/your-org/scaffold ~/.scaffold-cli
+git clone https://github.com/Abhiram-Rakesh/Scaffold ~/.scaffold-cli
 export PATH="$HOME/.scaffold-cli/bin:$PATH"
 
 # 2. Bootstrap (run from inside your application repo)
@@ -57,15 +57,9 @@ Scaffold creates everything — S3 bucket, DynamoDB table, IAM OIDC role, and Gi
 ### Install
 
 ```bash
-git clone https://github.com/your-org/scaffold ~/.scaffold-cli
+git clone https://github.com/Abhiram-Rakesh/Scaffold ~/.scaffold-cli
 echo 'export PATH="$HOME/.scaffold-cli/bin:$PATH"' >> ~/.bashrc
 source ~/.bashrc
-```
-
-Verify:
-
-```bash
-scaffold version
 ```
 
 ### Upgrade
@@ -395,7 +389,7 @@ aws dynamodb delete-item \
 ## Contributing
 
 ```bash
-git clone https://github.com/your-org/scaffold
+git clone https://github.com/Abhiram-Rakesh/Scaffold
 cd scaffold
 ```
 
@@ -432,7 +426,3 @@ scaffold/
 ```
 
 ---
-
-## License
-
-MIT
