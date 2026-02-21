@@ -5,7 +5,7 @@
 Scaffold bootstraps GitHub Actions pipelines for Terraform — OIDC auth, S3 remote state, DynamoDB locking — without touching stored AWS credentials.
 
 ```bash
-git clone https://github.com/your-org/scaffold ~/.scaffold-cli
+git clone https://github.com/Abhiram-Rakesh/Scaffold ~/.scaffold-cli
 export PATH="$HOME/.scaffold-cli/bin:$PATH"
 scaffold init
 ```
