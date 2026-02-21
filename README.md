@@ -80,8 +80,8 @@ Interactively provisions AWS resources and generates GitHub Actions workflows fo
 
 | Resource | Example Name |
 |---|---|
-| S3 bucket | `tf-state-my-app-a1b2c3d4` |
-| DynamoDB table | `tf-lock-my-app-a1b2c3d4` |
+| S3 bucket | `tf-state-my-app-123456789012-a1b2c3d4` |
+| DynamoDB table | `tf-lock-my-app-123456789012-a1b2c3d4` |
 | IAM OIDC role | `github-actions-my-app` |
 | GitHub Actions workflow | `.github/workflows/terraform-production.yaml` |
 | Terraform backend config | `infra/production/providers.tf` |
