@@ -5,8 +5,8 @@
 Scaffold bootstraps GitHub Actions pipelines for Terraform — OIDC auth, S3 remote state, DynamoDB locking — without touching stored AWS credentials.
 
 ```bash
-git clone https://github.com/Abhiram-Rakesh/Scaffold ~/.scaffold-cli
-export PATH="$HOME/.scaffold-cli/bin:$PATH"
+git clone https://github.com/Abhiram-Rakesh/Scaffold
+./install.sh
 scaffold init
 ```
 
@@ -28,9 +28,10 @@ scaffold init
 ## Quick Start
 
 ```bash
-# 1. Install
-git clone https://github.com/Abhiram-Rakesh/Scaffold ~/.scaffold-cli
-export PATH="$HOME/.scaffold-cli/bin:$PATH"
+# 1. Clone and install
+git clone https://github.com/Abhiram-Rakesh/Scaffold
+cd Scaffold
+./install.sh
 
 # 2. Bootstrap (run from inside your application repo)
 cd my-app
@@ -56,16 +57,41 @@ Scaffold creates everything — S3 bucket, DynamoDB table, IAM OIDC role, and Gi
 
 ### Install
 
+**Option 1: Quick Install (Recommended)**
 ```bash
-git clone https://github.com/Abhiram-Rakesh/Scaffold ~/.scaffold-cli
-echo 'export PATH="$HOME/.scaffold-cli/bin:$PATH"' >> ~/.bashrc
-source ~/.bashrc
+git clone https://github.com/Abhiram-Rakesh/Scaffold
+cd Scaffold
+./install.sh
+```
+
+**Option 2: Custom Location**
+```bash
+./install.sh --prefix=/opt/scaffold
+```
+
+**Option 3: System-wide (requires root)**
+```bash
+sudo ./install.sh --system
 ```
 
 ### Upgrade
 
 ```bash
-cd ~/.scaffold-cli && git pull
+# If installed via install.sh
+./install.sh
+
+# Or manually
+cd ~/.local/share/scaffold && git pull
+```
+
+### Uninstall
+
+```bash
+# From the scaffold directory
+./uninstall.sh
+
+# Or system-wide
+sudo ./uninstall.sh --system
 ```
 
 ---
