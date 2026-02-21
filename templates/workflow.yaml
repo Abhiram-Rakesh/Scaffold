@@ -123,7 +123,6 @@ jobs:
       - name: Terraform plan
         run: |
           terraform plan \
-            -var="aws_region=${{ env.AWS_REGION }}" \
             -out=tfplan \
             -detailed-exitcode
         continue-on-error: true

@@ -108,29 +108,65 @@ destroy_platform() {
   if s3_bucket_exists "$s3_bucket"; then
     info "Emptying S3 bucket (including all versions)..."
     
-    # List all object versions and delete markers, then delete in batches of 1000
-    aws s3api list-object-versions --bucket "$s3_bucket" --output json 2>/dev/null \
-      | python3 - "$s3_bucket" <<'PYEOF'
-import json, sys, subprocess
-bucket = sys.argv[1]
-data = json.load(sys.stdin)
+    # Use Python to properly delete all versions and delete markers
+    python3 << PYEOF
+import json
+import subprocess
+import sys
+
+bucket = "$s3_bucket"
+
+# Get all versions and delete markers
+result = subprocess.run(
+    ["aws", "s3api", "list-object-versions", "--bucket", bucket, "--output", "json"],
+    capture_output=True, text=True
+)
+
+if result.returncode != 0:
+    print(f"Failed to list objects: {result.stderr}")
+    sys.exit(1)
+
+data = json.loads(result.stdout) if result.stdout else {}
+
 objects = []
-# Collect all versions
 for v in data.get("Versions", []):
     objects.append({"Key": v["Key"], "VersionId": v["VersionId"]})
-# Collect all delete markers
 for m in data.get("DeleteMarkers", []):
     objects.append({"Key": m["Key"], "VersionId": m["VersionId"]})
-# Delete in batches of 1000 (S3 API limit)
+
+print(f"Found {len(objects)} objects to delete")
+
+# Delete in batches of 1000
 for i in range(0, len(objects), 1000):
     batch = objects[i:i+1000]
     delete = json.dumps({"Objects": batch, "Quiet": True})
-    subprocess.run(["aws", "s3api", "delete-objects", "--bucket", bucket,
-                    "--delete", delete], check=False, capture_output=True)
+    result = subprocess.run(
+        ["aws", "s3api", "delete-objects", "--bucket", bucket, "--delete", delete],
+        capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        print(f"Warning: {result.stderr}")
+
+# Try to delete bucket
+result = subprocess.run(["aws", "s3", "rb", "s3://" + bucket], capture_output=True, text=True)
+if result.returncode != 0:
+    # Try with force
+    result = subprocess.run(["aws", "s3", "rb", "s3://" + bucket, "--force"], capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"Warning: {result.stderr}")
+        sys.exit(1)
+
+print("Bucket deleted successfully")
 PYEOF
-    # Remove the now-empty bucket
-    aws s3 rb "s3://$s3_bucket" --force &>/dev/null
-    ok "S3 bucket emptied and deleted"
+    
+    # Check if bucket still exists
+    if s3_bucket_exists "$s3_bucket"; then
+      warn "Failed to delete S3 bucket - may need manual cleanup"
+    else
+      ok "S3 bucket deleted"
+    fi
+  else
+    info "S3 bucket does not exist (already cleaned up)"
   fi
 
   # ===========================================================================
@@ -168,8 +204,8 @@ main() {
   echo "    - Configuration files"
   echo ""
 
-  read -rp "  Type DESTROY EVERYTHING to confirm: " confirm
-  [[ "$confirm" == "DESTROY EVERYTHING" ]] || die "Aborted."
+  read -rp "  Type DESTROY to confirm: " confirm
+  [[ "$confirm" == "DESTROY" ]] || die "Aborted."
 
   # Configure AWS and detect repository
   configure_aws

@@ -50,6 +50,7 @@ create_s3_bucket() {
     # Create new bucket with versioning, encryption, and lifecycle policies
     terraform -chdir="$TF_BACKEND_DIR" apply -auto-approve \
       -var="bucket_name=$bucket" \
+      -var="dynamodb_table_name=$DYNAMO_TABLE" \
       -var="aws_region=$AWS_REGION" \
       -target=aws_s3_bucket.terraform_state \
       -target=aws_s3_bucket_versioning.terraform_state \
@@ -74,6 +75,7 @@ create_dynamodb_table() {
   else
     # Create new table with LockID as the hash key
     terraform -chdir="$TF_BACKEND_DIR" apply -auto-approve \
+      -var="bucket_name=$S3_BUCKET" \
       -var="dynamodb_table_name=$table" \
       -var="aws_region=$AWS_REGION" \
       -target=aws_dynamodb_table.terraform_locks
@@ -154,6 +156,7 @@ generate_providers_tf() {
 
   # Create providers.tf with S3 backend configuration
   # The backend block is empty - config is supplied via -backend-config flags
+  # Note: Provider config should be defined in user's own terraform files
   cat > "$providers_file" <<EOF
 terraform {
   required_version = ">= 1.7.0"
@@ -164,16 +167,6 @@ terraform {
     }
   }
   backend "s3" {}
-}
-
-provider "aws" {
-  region = var.aws_region
-}
-
-variable "aws_region" {
-  description = "AWS region for resources"
-  type        = string
-  default     = "$AWS_REGION"
 }
 EOF
   ok "providers.tf: $providers_file"
@@ -188,6 +181,7 @@ create_dynamodb_table() {
     terraform -chdir="$TF_BACKEND_DIR" import aws_dynamodb_table.terraform_locks "$table" 2>/dev/null || true
   else
     terraform -chdir="$TF_BACKEND_DIR" apply -auto-approve \
+      -var="bucket_name=$S3_BUCKET" \
       -var="dynamodb_table_name=$table" \
       -var="aws_region=$AWS_REGION" \
       -target=aws_dynamodb_table.terraform_locks
@@ -260,16 +254,6 @@ terraform {
     }
   }
   backend "s3" {}
-}
-
-provider "aws" {
-  region = var.aws_region
-}
-
-variable "aws_region" {
-  description = "AWS region for resources"
-  type        = string
-  default     = "$AWS_REGION"
 }
 EOF
   ok "providers.tf: $providers_file"
