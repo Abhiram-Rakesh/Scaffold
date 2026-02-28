@@ -1,0 +1,83 @@
+version: 1
+
+project_name: scaffold
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+
+builds:
+  - id: scaffold
+    main: ./cmd/scaffold
+    binary: scaffold
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/scaffold-tool/scaffold/pkg/version.Version={{.Version}}
+      - -X github.com/scaffold-tool/scaffold/pkg/version.Commit={{.Commit}}
+      - -X github.com/scaffold-tool/scaffold/pkg/version.BuildDate={{.Date}}
+
+archives:
+  - id: scaffold
+    builds:
+      - scaffold
+    name_template: "scaffold_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format: tar.gz
+    files:
+      - README.md
+      - LICENSE
+      - docs/*
+
+checksum:
+  name_template: "scaffold_{{ .Version }}_checksums.txt"
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - Merge pull request
+      - Merge branch
+  groups:
+    - title: "New Features"
+      regexp: "^feat"
+      order: 0
+    - title: "Bug Fixes"
+      regexp: "^fix"
+      order: 1
+    - title: "Performance Improvements"
+      regexp: "^perf"
+      order: 2
+
+release:
+  github:
+    owner: scaffold-tool
+    name: scaffold
+  draft: false
+  prerelease: auto
+  name_template: "Scaffold v{{ .Version }}"
+  header: |
+    ## Scaffold v{{ .Version }}
+
+    Multi-Account Terraform CI/CD Platform
+
+  footer: |
+    ## Installation
+
+    ```bash
+    curl -sSL https://scaffold.sh/install.sh | bash
+    ```
+
+    **Full Changelog**: https://github.com/scaffold-tool/scaffold/compare/{{ .PreviousTag }}...{{ .Tag }}
