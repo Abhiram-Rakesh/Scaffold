@@ -2,9 +2,9 @@ package commands
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/fatih/color"
+	"github.com/scaffold-tool/scaffold/pkg/version"
 	"github.com/spf13/cobra"
 )
 
@@ -55,16 +55,11 @@ func printBanner() {
 	fmt.Println()
 	cyan.Println("╭──────────────────────────────────────╮")
 	cyan.Println("│   Scaffold - Infrastructure CI/CD   │")
-	cyan.Printf("│   Version %-26s│\n", fmt.Sprintf("%s", getVersion()))
+	cyan.Printf("│   Version %-26s│\n", getVersion())
 	cyan.Println("╰──────────────────────────────────────╯")
 	fmt.Println()
 }
 
 func getVersion() string {
-	return "1.0.0"
-}
-
-func exitError(msg string, args ...interface{}) {
-	color.Red("✗ "+msg, args...)
-	os.Exit(1)
+	return version.Version
 }

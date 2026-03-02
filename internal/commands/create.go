@@ -48,14 +48,22 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	// Environment configuration
 	bold.Println("→ Environment Configuration")
 	var targetAccountID, targetRegion, watchDir, triggerBranch string
-	survey.AskOne(&survey.Input{Message: "Target AWS Account ID:"}, &targetAccountID,
-		survey.WithValidator(survey.Required))
-	survey.AskOne(&survey.Input{Message: "AWS Region:", Default: cfg.Backend.Region}, &targetRegion)
-	survey.AskOne(&survey.Input{
+	if err := survey.AskOne(&survey.Input{Message: "Target AWS Account ID:"}, &targetAccountID,
+		survey.WithValidator(survey.Required)); err != nil {
+		return fmt.Errorf("failed to read target account id: %w", err)
+	}
+	if err := survey.AskOne(&survey.Input{Message: "AWS Region:", Default: cfg.Backend.Region}, &targetRegion); err != nil {
+		return fmt.Errorf("failed to read AWS region: %w", err)
+	}
+	if err := survey.AskOne(&survey.Input{
 		Message: fmt.Sprintf("Watch directory [infra/%s]:", envName),
 		Default: fmt.Sprintf("infra/%s", envName),
-	}, &watchDir)
-	survey.AskOne(&survey.Input{Message: "Trigger branch:", Default: "main"}, &triggerBranch)
+	}, &watchDir); err != nil {
+		return fmt.Errorf("failed to read watch directory: %w", err)
+	}
+	if err := survey.AskOne(&survey.Input{Message: "Trigger branch:", Default: "main"}, &triggerBranch); err != nil {
+		return fmt.Errorf("failed to read trigger branch: %w", err)
+	}
 	fmt.Println()
 
 	// Cross-account setup in backend account
@@ -134,11 +142,13 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		"Managed policy attachments (simpler, may fail with SCPs)",
 	}
 	var policyModeChoice string
-	survey.AskOne(&survey.Select{
+	if err := survey.AskOne(&survey.Select{
 		Message: "IAM policy mode:",
 		Options: policyModeOptions,
 		Default: policyModeOptions[0],
-	}, &policyModeChoice)
+	}, &policyModeChoice); err != nil {
+		return fmt.Errorf("failed to read IAM policy mode: %w", err)
+	}
 	policyMode := "inline"
 	if strings.Contains(policyModeChoice, "Managed") {
 		policyMode = "managed"

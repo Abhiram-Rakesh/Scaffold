@@ -65,10 +65,12 @@ func SelectAWSCredentials() (aws.CredentialMethod, string, error) {
 	switch choice {
 	case options[0]:
 		var profile string
-		survey.AskOne(&survey.Input{
+		if err := survey.AskOne(&survey.Input{
 			Message: "AWS Profile:",
 			Default: "default",
-		}, &profile)
+		}, &profile); err != nil {
+			return "", "", err
+		}
 		return aws.CredentialProfile, profile, nil
 
 	case options[1]:
@@ -76,9 +78,11 @@ func SelectAWSCredentials() (aws.CredentialMethod, string, error) {
 
 	case options[2]:
 		var session string
-		survey.AskOne(&survey.Input{
+		if err := survey.AskOne(&survey.Input{
 			Message: "SSO Session name:",
-		}, &session)
+		}, &session); err != nil {
+			return "", "", err
+		}
 		return aws.CredentialSSO, session, nil
 	}
 

@@ -29,7 +29,9 @@ func (c *Client) CreateStateBucket(bucketName, region, accountID, kmsKeyID, gith
 
 	// Generate unique suffix
 	suffix := make([]byte, 4)
-	rand.Read(suffix)
+	if _, err := rand.Read(suffix); err != nil {
+		return "", fmt.Errorf("failed to generate bucket suffix: %w", err)
+	}
 	finalName := fmt.Sprintf("%s-%s", bucketName, hex.EncodeToString(suffix))
 
 	// Check if bucket already exists (idempotent)
@@ -213,7 +215,9 @@ func (c *Client) GetStateResources(bucketName, stateKey string) ([]string, error
 	defer result.Body.Close()
 
 	var buf bytes.Buffer
-	buf.ReadFrom(result.Body)
+	if _, err := buf.ReadFrom(result.Body); err != nil {
+		return nil, fmt.Errorf("failed to read state file: %w", err)
+	}
 
 	var state struct {
 		Resources []struct {
@@ -269,7 +273,9 @@ func (c *Client) GetStateInfo(bucketName, stateKey string) (*StateInfo, error) {
 	defer result.Body.Close()
 
 	var buf bytes.Buffer
-	buf.ReadFrom(result.Body)
+	if _, err := buf.ReadFrom(result.Body); err != nil {
+		return info, fmt.Errorf("failed to read state file: %w", err)
+	}
 
 	var state struct {
 		Version int `json:"version"`
@@ -346,7 +352,7 @@ func buildInitialBucketPolicy(bucketName, accountID string) map[string]interface
 				"Principal": map[string]interface{}{
 					"AWS": "*",
 				},
-				"Action": "s3:PutObject",
+				"Action":   "s3:PutObject",
 				"Resource": fmt.Sprintf("arn:aws:s3:::%s/*", bucketName),
 				"Condition": map[string]interface{}{
 					"StringNotEquals": map[string]interface{}{

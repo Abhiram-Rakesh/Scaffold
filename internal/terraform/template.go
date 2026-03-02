@@ -8,6 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // WorkflowConfig holds the parameters for generating a GitHub Actions workflow.
@@ -156,7 +159,7 @@ func GenerateWorkflow(cfg WorkflowConfig) error {
 
 	vars := workflowVars{
 		Environment:      cfg.Environment,
-		EnvironmentTitle: strings.Title(cfg.Environment),
+		EnvironmentTitle: cases.Title(language.English).String(cfg.Environment),
 		EnvironmentUpper: strings.ToUpper(cfg.Environment),
 		TriggerBranch:    cfg.TriggerBranch,
 		WatchDir:         cfg.WatchDir,

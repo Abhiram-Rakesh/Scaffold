@@ -27,7 +27,9 @@ func (c *Client) CreateLockTable(tableName, region, githubOrg, githubRepo string
 	svc := dynamodb.NewFromConfig(c.cfg)
 
 	suffix := make([]byte, 4)
-	rand.Read(suffix)
+	if _, err := rand.Read(suffix); err != nil {
+		return "", fmt.Errorf("failed to generate table suffix: %w", err)
+	}
 	finalName := fmt.Sprintf("%s-%s", tableName, hex.EncodeToString(suffix))
 
 	// Check if already exists
