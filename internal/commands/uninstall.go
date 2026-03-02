@@ -122,14 +122,18 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 
 		var confirm string
-		survey.AskOne(&survey.Input{Message: "Type 'DESTROY EVERYTHING' to confirm:"}, &confirm)
+		if err := survey.AskOne(&survey.Input{Message: "Type 'DESTROY EVERYTHING' to confirm:"}, &confirm); err != nil {
+			return fmt.Errorf("failed to read force uninstall confirmation: %w", err)
+		}
 		if confirm != "DESTROY EVERYTHING" {
 			fmt.Println("Aborted.")
 			return nil
 		}
 	} else {
 		var confirm string
-		survey.AskOne(&survey.Input{Message: "Type 'UNINSTALL' to confirm:"}, &confirm)
+		if err := survey.AskOne(&survey.Input{Message: "Type 'UNINSTALL' to confirm:"}, &confirm); err != nil {
+			return fmt.Errorf("failed to read uninstall confirmation: %w", err)
+		}
 		if confirm != "UNINSTALL" {
 			fmt.Println("Aborted.")
 			return nil

@@ -93,9 +93,11 @@ func runRemove(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 
 		var confirm string
-		survey.AskOne(&survey.Input{
+		if err := survey.AskOne(&survey.Input{
 			Message: fmt.Sprintf("Type '%s' to confirm force removal:", envName),
-		}, &confirm)
+		}, &confirm); err != nil {
+			return fmt.Errorf("failed to read force removal confirmation: %w", err)
+		}
 		if confirm != envName {
 			fmt.Println("Aborted.")
 			return nil
