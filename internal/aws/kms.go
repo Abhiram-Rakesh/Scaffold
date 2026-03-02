@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -27,10 +28,9 @@ func (c *Client) CreateKMSKey(repoName, githubOrg, githubRepo string) (string, e
 
 	// Create key
 	result, err := svc.CreateKey(ctx, &kms.CreateKeyInput{
-		Description:           aws.String("Terraform state encryption key"),
-		KeyUsage:              kmstypes.KeyUsageTypeEncryptDecrypt,
-		EnableKeyRotation:     aws.Bool(true),
-		DeletionWindowInDays:  aws.Int32(7),
+		Description: aws.String("Terraform state encryption key"),
+		KeyUsage:    kmstypes.KeyUsageTypeEncryptDecrypt,
+		KeySpec:     kmstypes.KeySpecSymmetricDefault,
 		Tags: []kmstypes.Tag{
 			{TagKey: aws.String("Name"), TagValue: aws.String("Terraform State Encryption")},
 			{TagKey: aws.String("ManagedBy"), TagValue: aws.String("Scaffold")},
@@ -42,6 +42,13 @@ func (c *Client) CreateKMSKey(repoName, githubOrg, githubRepo string) (string, e
 	}
 
 	keyID := aws.ToString(result.KeyMetadata.KeyId)
+
+	// Enable key rotation
+	if _, err := svc.EnableKeyRotation(ctx, &kms.EnableKeyRotationInput{
+		KeyId: aws.String(keyID),
+	}); err != nil {
+		return keyID, fmt.Errorf("failed to enable key rotation: %w", err)
+	}
 
 	// Create alias
 	if _, err := svc.CreateAlias(ctx, &kms.CreateAliasInput{
@@ -68,37 +75,92 @@ func (c *Client) AddSpokeAccountToKMSPolicy(keyID, spokeAccountID string) error 
 		return fmt.Errorf("failed to get KMS policy: %w", err)
 	}
 
-	// For simplicity, just append the spoke account statement
-	// In production, proper JSON manipulation would be used
-	currentPolicy := aws.ToString(result.Policy)
-	_ = currentPolicy
-
-	// Build new policy with spoke account
 	spokeAccountARN := fmt.Sprintf("arn:aws:iam::%s:root", spokeAccountID)
-	newStatement := fmt.Sprintf(`{
-		"Sid": "SpokeAccount%s",
-		"Effect": "Allow",
-		"Principal": {"AWS": "%s"},
-		"Action": ["kms:Decrypt","kms:Encrypt","kms:GenerateDataKey","kms:DescribeKey"],
-		"Resource": "*"
-	}`, spokeAccountID, spokeAccountARN)
+	sid := fmt.Sprintf("SpokeAccount%s", spokeAccountID)
 
-	// Simple insertion before last closing bracket
-	insertPoint := len(currentPolicy) - 2
-	for currentPolicy[insertPoint] == ']' || currentPolicy[insertPoint] == '}' || currentPolicy[insertPoint] == ' ' || currentPolicy[insertPoint] == '\n' {
-		insertPoint--
+	var policy map[string]interface{}
+	if err := json.Unmarshal([]byte(aws.ToString(result.Policy)), &policy); err != nil {
+		return fmt.Errorf("failed to parse KMS policy JSON: %w", err)
 	}
 
-	newPolicy := currentPolicy[:insertPoint+1] + ",\n" + newStatement + "\n]}"
+	// KMS policy Statement may be an array or a single object.
+	var statements []interface{}
+	switch s := policy["Statement"].(type) {
+	case []interface{}:
+		statements = s
+	case map[string]interface{}:
+		statements = []interface{}{s}
+	default:
+		return fmt.Errorf("invalid KMS policy: Statement must be object or array")
+	}
+
+	// Idempotent: do not add duplicate statements.
+	for _, stmt := range statements {
+		statement, ok := stmt.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if statementSid, ok := statement["Sid"].(string); ok && statementSid == sid {
+			return nil
+		}
+		if principalIncludesAWSArn(statement["Principal"], spokeAccountARN) {
+			return nil
+		}
+	}
+
+	statements = append(statements, map[string]interface{}{
+		"Sid":    sid,
+		"Effect": "Allow",
+		"Principal": map[string]interface{}{
+			"AWS": spokeAccountARN,
+		},
+		"Action": []string{
+			"kms:Decrypt",
+			"kms:Encrypt",
+			"kms:GenerateDataKey",
+			"kms:DescribeKey",
+		},
+		"Resource": "*",
+	})
+	policy["Statement"] = statements
+
+	updatedPolicy, err := json.Marshal(policy)
+	if err != nil {
+		return fmt.Errorf("failed to serialize KMS policy JSON: %w", err)
+	}
 
 	if _, err := svc.PutKeyPolicy(ctx, &kms.PutKeyPolicyInput{
 		KeyId:      aws.String(keyID),
 		PolicyName: aws.String("default"),
-		Policy:     aws.String(newPolicy),
+		Policy:     aws.String(string(updatedPolicy)),
 	}); err != nil {
 		return fmt.Errorf("failed to update KMS policy: %w", err)
 	}
 	return nil
+}
+
+func principalIncludesAWSArn(principal interface{}, arn string) bool {
+	principalMap, ok := principal.(map[string]interface{})
+	if !ok {
+		return false
+	}
+
+	awsPrincipal, ok := principalMap["AWS"]
+	if !ok {
+		return false
+	}
+
+	switch p := awsPrincipal.(type) {
+	case string:
+		return p == arn
+	case []interface{}:
+		for _, v := range p {
+			if s, ok := v.(string); ok && s == arn {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ScheduleKMSKeyDeletion schedules a KMS key for deletion.

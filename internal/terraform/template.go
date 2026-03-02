@@ -1,6 +1,7 @@
 package terraform
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -220,30 +221,42 @@ type Runner struct {
 	stateKey      string
 	region        string
 	dynamoDBTable string
+	kmsKeyID      string
+	env           []string
 }
 
 // NewRunner creates a new Terraform runner.
-func NewRunner(workDir, bucket, stateKey, region, dynamoDBTable string) *Runner {
+func NewRunner(workDir, bucket, stateKey, region, dynamoDBTable, kmsKeyID string, env []string) *Runner {
 	return &Runner{
 		workDir:       workDir,
 		bucket:        bucket,
 		stateKey:      stateKey,
 		region:        region,
 		dynamoDBTable: dynamoDBTable,
+		kmsKeyID:      kmsKeyID,
+		env:           env,
 	}
 }
 
 // Init runs terraform init.
 func (r *Runner) Init() error {
-	cmd := exec.Command("terraform", "init",
+	args := []string{
+		"init",
 		fmt.Sprintf("-backend-config=bucket=%s", r.bucket),
 		fmt.Sprintf("-backend-config=key=%s", r.stateKey),
 		fmt.Sprintf("-backend-config=region=%s", r.region),
 		fmt.Sprintf("-backend-config=dynamodb_table=%s", r.dynamoDBTable),
-		"-backend-config=encrypt=true",
-		"-input=false",
-	)
+	}
+	if r.kmsKeyID != "" {
+		args = append(args, fmt.Sprintf("-backend-config=kms_key_id=%s", r.kmsKeyID))
+	}
+	args = append(args, "-backend-config=encrypt=true", "-input=false")
+
+	cmd := exec.Command("terraform", args...)
 	cmd.Dir = r.workDir
+	if len(r.env) > 0 {
+		cmd.Env = r.env
+	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
@@ -253,12 +266,42 @@ func (r *Runner) Init() error {
 func (r *Runner) PlanDestroy() ([]string, string, error) {
 	cmd := exec.Command("terraform", "plan", "-destroy", "-out=tfplan", "-input=false")
 	cmd.Dir = r.workDir
+	if len(r.env) > 0 {
+		cmd.Env = r.env
+	}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, string(out), fmt.Errorf("terraform plan failed: %w\n%s", err, out)
 	}
 
-	// Parse resources from plan output
+	// Parse planned destroys from JSON plan for robust detection.
+	showCmd := exec.Command("terraform", "show", "-json", "tfplan")
+	showCmd.Dir = r.workDir
+	if len(r.env) > 0 {
+		showCmd.Env = r.env
+	}
+	showOut, showErr := showCmd.CombinedOutput()
+	if showErr == nil {
+		var plan struct {
+			ResourceChanges []struct {
+				Address string `json:"address"`
+				Change  struct {
+					Actions []string `json:"actions"`
+				} `json:"change"`
+			} `json:"resource_changes"`
+		}
+		if json.Unmarshal(showOut, &plan) == nil {
+			var resources []string
+			for _, rc := range plan.ResourceChanges {
+				if hasAction(rc.Change.Actions, "delete") && rc.Address != "" {
+					resources = append(resources, rc.Address)
+				}
+			}
+			return resources, string(out), nil
+		}
+	}
+
+	// Fallback parser for older terraform output.
 	var resources []string
 	for _, line := range strings.Split(string(out), "\n") {
 		if strings.Contains(line, "# ") && strings.Contains(line, "will be destroyed") {
@@ -268,7 +311,6 @@ func (r *Runner) PlanDestroy() ([]string, string, error) {
 			}
 		}
 	}
-
 	return resources, string(out), nil
 }
 
@@ -276,7 +318,19 @@ func (r *Runner) PlanDestroy() ([]string, string, error) {
 func (r *Runner) Destroy() error {
 	cmd := exec.Command("terraform", "apply", "-destroy", "-auto-approve", "-input=false")
 	cmd.Dir = r.workDir
+	if len(r.env) > 0 {
+		cmd.Env = r.env
+	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+func hasAction(actions []string, target string) bool {
+	for _, a := range actions {
+		if a == target {
+			return true
+		}
+	}
+	return false
 }

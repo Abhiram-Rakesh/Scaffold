@@ -2,6 +2,8 @@ package commands
 
 import (
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/fatih/color"
@@ -106,8 +108,39 @@ func runDestroy(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  Working directory: %s\n", env.WatchDir)
 	fmt.Printf("  Backend: s3://%s/%s\n\n", cfg.Backend.S3Bucket, env.StateKey)
 
-	tfRunner := terraform.NewRunner(env.WatchDir, cfg.Backend.S3Bucket, env.StateKey,
-		cfg.Backend.Region, cfg.Backend.DynamoDBTable)
+	tfEnv := os.Environ()
+	switch credMethod {
+	case aws.CredentialProfile, aws.CredentialSSO:
+		if profile != "" {
+			tfEnv = append(tfEnv, "AWS_PROFILE="+profile)
+		}
+		tfEnv = append(tfEnv, "AWS_SDK_LOAD_CONFIG=1")
+		// Ensure stale env credentials don't override selected profile/session.
+		tfEnv = append(tfEnv,
+			"AWS_ACCESS_KEY_ID=",
+			"AWS_SECRET_ACCESS_KEY=",
+			"AWS_SESSION_TOKEN=",
+		)
+	}
+
+	// Use backend resource identifiers that work cross-account.
+	dynamoBackend := fmt.Sprintf("arn:aws:dynamodb:%s:%s:table/%s",
+		cfg.Backend.Region, cfg.Backend.AccountID, cfg.Backend.DynamoDBTable)
+	kmsBackend := cfg.Backend.KMSKeyID
+	if kmsBackend != "" && !strings.HasPrefix(kmsBackend, "arn:") {
+		kmsBackend = fmt.Sprintf("arn:aws:kms:%s:%s:key/%s",
+			cfg.Backend.Region, cfg.Backend.AccountID, kmsBackend)
+	}
+
+	tfRunner := terraform.NewRunner(
+		env.WatchDir,
+		cfg.Backend.S3Bucket,
+		env.StateKey,
+		cfg.Backend.Region,
+		dynamoBackend,
+		kmsBackend,
+		tfEnv,
+	)
 
 	spinner = ui.NewSpinner("Running terraform init...")
 	spinner.Start()

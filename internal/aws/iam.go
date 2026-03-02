@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
@@ -31,7 +32,7 @@ func (c *Client) EnsureOIDCProvider(githubOrg, githubRepo string) error {
 		info, err := svc.GetOpenIDConnectProvider(ctx, &iam.GetOpenIDConnectProviderInput{
 			OpenIDConnectProviderArn: p.Arn,
 		})
-		if err == nil && aws.ToString(info.Url) == githubOIDCURL {
+		if err == nil && sameOIDCProviderURL(aws.ToString(info.Url), githubOIDCURL) {
 			return nil // already exists
 		}
 	}
@@ -71,7 +72,7 @@ func (c *Client) CreateGitHubActionsRole(
 		info, err := svc.GetOpenIDConnectProvider(ctx, &iam.GetOpenIDConnectProviderInput{
 			OpenIDConnectProviderArn: p.Arn,
 		})
-		if err == nil && aws.ToString(info.Url) == githubOIDCURL {
+		if err == nil && sameOIDCProviderURL(aws.ToString(info.Url), githubOIDCURL) {
 			oidcARN = aws.ToString(p.Arn)
 			break
 		}
@@ -190,6 +191,8 @@ func buildPowerUserInlinePolicy() map[string]interface{} {
 }
 
 func buildBackendAccessPolicy(bucket, table, kmsKey, region, accountID, envName string) map[string]interface{} {
+	kmsResource := normalizeKMSResource(kmsKey, region, accountID)
+
 	return map[string]interface{}{
 		"Version": "2012-10-17",
 		"Statement": []interface{}{
@@ -227,7 +230,7 @@ func buildBackendAccessPolicy(bucket, table, kmsKey, region, accountID, envName 
 					"kms:GenerateDataKey",
 					"kms:DescribeKey",
 				},
-				"Resource": kmsKey,
+				"Resource": kmsResource,
 			},
 			map[string]interface{}{
 				"Sid":      "GetCallerIdentity",
@@ -239,5 +242,33 @@ func buildBackendAccessPolicy(bucket, table, kmsKey, region, accountID, envName 
 	}
 }
 
+func normalizeKMSResource(kmsKey, region, accountID string) string {
+	if kmsKey == "" || kmsKey == "*" {
+		return "*"
+	}
+	// Already an ARN (key or alias ARN).
+	if strings.HasPrefix(kmsKey, "arn:") {
+		return kmsKey
+	}
+	// Alias name provided (e.g., alias/terraform-state-myrepo).
+	if strings.HasPrefix(kmsKey, "alias/") {
+		return fmt.Sprintf("arn:aws:kms:%s:%s:%s", region, accountID, kmsKey)
+	}
+	// Raw key ID provided; convert to key ARN.
+	return fmt.Sprintf("arn:aws:kms:%s:%s:key/%s", region, accountID, kmsKey)
+}
+
 // urlEncode is used for URL-encoding policy documents
 var _ = url.QueryEscape
+
+func sameOIDCProviderURL(a, b string) bool {
+	return normalizeOIDCProviderURL(a) == normalizeOIDCProviderURL(b)
+}
+
+func normalizeOIDCProviderURL(u string) string {
+	normalized := strings.TrimSpace(strings.ToLower(u))
+	normalized = strings.TrimPrefix(normalized, "https://")
+	normalized = strings.TrimPrefix(normalized, "http://")
+	normalized = strings.TrimSuffix(normalized, "/")
+	return normalized
+}
