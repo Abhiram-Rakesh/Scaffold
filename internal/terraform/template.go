@@ -253,7 +253,7 @@ func (r *Runner) Init() error {
 	if r.kmsKeyID != "" {
 		args = append(args, fmt.Sprintf("-backend-config=kms_key_id=%s", r.kmsKeyID))
 	}
-	args = append(args, "-backend-config=encrypt=true", "-input=false")
+	args = append(args, "-backend-config=encrypt=true", "-reconfigure", "-input=false")
 
 	cmd := exec.Command("terraform", args...)
 	cmd.Dir = r.workDir
