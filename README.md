@@ -2,7 +2,7 @@
 
 **Multi-Account Terraform CI/CD Platform**
 
-Scaffold is an open-source CLI tool written in Go that bootstraps production-grade, multi-account Terraform CI/CD pipelines using **GitHub Actions**, **centralized S3 remote state**, and **IAM OIDC authentication** — in minutes, not hours.
+Scaffold is an open-source CLI tool written in Go that bootstraps production-grade, multi-account Terraform CI/CD pipelines using **GitHub Actions**, **centralized S3 remote state**, and **IAM OIDC authentication**
 
 ---
 
