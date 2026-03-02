@@ -86,7 +86,9 @@ func runDestroy(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 
 		var removeLock bool
-		survey.AskOne(&survey.Confirm{Message: "Remove this lock?", Default: false}, &removeLock)
+		if err := survey.AskOne(&survey.Confirm{Message: "Remove this lock?", Default: false}, &removeLock); err != nil {
+			return fmt.Errorf("failed to read lock removal confirmation: %w", err)
+		}
 		if !removeLock {
 			return fmt.Errorf("cannot proceed with active state lock")
 		}
@@ -184,9 +186,11 @@ func runDestroy(cmd *cobra.Command, args []string) error {
 		color.Red("  This action is IRREVERSIBLE.\n")
 
 		var confirm string
-		survey.AskOne(&survey.Input{
+		if err := survey.AskOne(&survey.Input{
 			Message: fmt.Sprintf("Type '%s' to confirm:", envName),
-		}, &confirm)
+		}, &confirm); err != nil {
+			return fmt.Errorf("failed to read destroy confirmation: %w", err)
+		}
 		if confirm != envName {
 			fmt.Println("Aborted.")
 			return nil

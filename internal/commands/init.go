@@ -41,10 +41,12 @@ func runInit(cmd *cobra.Command, args []string) error {
 	if cfg != nil {
 		yellow.Println("⚠  Scaffold is already initialized in this repository.")
 		var overwrite bool
-		survey.AskOne(&survey.Confirm{
+		if err := survey.AskOne(&survey.Confirm{
 			Message: "Re-initialize (existing backend will be imported if found)?",
 			Default: false,
-		}, &overwrite)
+		}, &overwrite); err != nil {
+			return fmt.Errorf("failed to read re-initialize confirmation: %w", err)
+		}
 		if !overwrite {
 			return nil
 		}
@@ -56,9 +58,13 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	// Collect backend account info
 	var accountID, region string
-	survey.AskOne(&survey.Input{Message: "AWS Account ID:"}, &accountID,
-		survey.WithValidator(survey.Required))
-	survey.AskOne(&survey.Input{Message: "AWS Region:", Default: "us-east-1"}, &region)
+	if err := survey.AskOne(&survey.Input{Message: "AWS Account ID:"}, &accountID,
+		survey.WithValidator(survey.Required)); err != nil {
+		return fmt.Errorf("failed to read AWS account id: %w", err)
+	}
+	if err := survey.AskOne(&survey.Input{Message: "AWS Region:", Default: "us-east-1"}, &region); err != nil {
+		return fmt.Errorf("failed to read AWS region: %w", err)
+	}
 
 	// Credential selection
 	credMethod, profile, err := ui.SelectAWSCredentials()
@@ -87,21 +93,27 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	var bucketName, tableName string
 	var enableKMS bool
-	survey.AskOne(&survey.Input{
+	if err := survey.AskOne(&survey.Input{
 		Message: "S3 Bucket Name",
 		Help:    "Leave empty to auto-generate",
-	}, &bucketName)
+	}, &bucketName); err != nil {
+		return fmt.Errorf("failed to read S3 bucket name: %w", err)
+	}
 	if bucketName == "" {
 		bucketName = defaultBucket
 	}
-	survey.AskOne(&survey.Input{
+	if err := survey.AskOne(&survey.Input{
 		Message: "DynamoDB Table Name",
 		Help:    "Leave empty to auto-generate",
-	}, &tableName)
+	}, &tableName); err != nil {
+		return fmt.Errorf("failed to read DynamoDB table name: %w", err)
+	}
 	if tableName == "" {
 		tableName = defaultTable
 	}
-	survey.AskOne(&survey.Confirm{Message: "Enable KMS encryption?", Default: true}, &enableKMS)
+	if err := survey.AskOne(&survey.Confirm{Message: "Enable KMS encryption?", Default: true}, &enableKMS); err != nil {
+		return fmt.Errorf("failed to read KMS preference: %w", err)
+	}
 
 	fmt.Println()
 	bold.Println("→ Provisioning backend resources...")

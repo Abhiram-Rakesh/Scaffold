@@ -80,7 +80,8 @@ func (c *Client) CreateLockTable(tableName, region, githubOrg, githubRepo string
 			PointInTimeRecoveryEnabled: aws.Bool(true),
 		},
 	}); err != nil {
-		// Non-fatal
+		// Non-fatal: table creation succeeded even if PITR toggle is denied.
+		_ = err
 	}
 
 	return finalName, nil

@@ -135,7 +135,8 @@ func (c *Client) CreateStateBucket(bucketName, region, accountID, kmsKeyID, gith
 			},
 		},
 	}); err != nil {
-		// Non-fatal
+		// Non-fatal: tagging may be blocked by policy; bucket is still usable.
+		_ = err
 	}
 
 	return finalName, nil
