@@ -9,7 +9,6 @@ coverage.html
 
 # Go workspace
 go.work
-go.sum
 
 # Editor
 .idea/
