@@ -295,6 +295,36 @@ func (c *Client) EmptyBucket(bucketName string) error {
 	ctx := context.Background()
 	svc := s3.NewFromConfig(c.cfg)
 
+	// Versioned buckets keep noncurrent versions and delete markers.
+	// These must be removed before DeleteBucket can succeed.
+	versionPaginator := s3.NewListObjectVersionsPaginator(svc, &s3.ListObjectVersionsInput{
+		Bucket: aws.String(bucketName),
+	})
+	for versionPaginator.HasMorePages() {
+		page, err := versionPaginator.NextPage(ctx)
+		if err != nil {
+			return err
+		}
+
+		identifiers := make([]s3types.ObjectIdentifier, 0, len(page.Versions)+len(page.DeleteMarkers))
+		for _, v := range page.Versions {
+			identifiers = append(identifiers, s3types.ObjectIdentifier{
+				Key:       v.Key,
+				VersionId: v.VersionId,
+			})
+		}
+		for _, m := range page.DeleteMarkers {
+			identifiers = append(identifiers, s3types.ObjectIdentifier{
+				Key:       m.Key,
+				VersionId: m.VersionId,
+			})
+		}
+		if err := deleteS3ObjectBatch(ctx, svc, bucketName, identifiers); err != nil {
+			return err
+		}
+	}
+
+	// Fallback: remove any remaining current objects (for non-versioned buckets).
 	paginator := s3.NewListObjectsV2Paginator(svc, &s3.ListObjectsV2Input{
 		Bucket: aws.String(bucketName),
 	})
@@ -304,13 +334,41 @@ func (c *Client) EmptyBucket(bucketName string) error {
 		if err != nil {
 			return err
 		}
+		identifiers := make([]s3types.ObjectIdentifier, 0, len(page.Contents))
 		for _, obj := range page.Contents {
-			if _, err := svc.DeleteObject(ctx, &s3.DeleteObjectInput{
-				Bucket: aws.String(bucketName),
-				Key:    obj.Key,
-			}); err != nil {
-				return err
-			}
+			identifiers = append(identifiers, s3types.ObjectIdentifier{Key: obj.Key})
+		}
+		if err := deleteS3ObjectBatch(ctx, svc, bucketName, identifiers); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func deleteS3ObjectBatch(ctx context.Context, svc *s3.Client, bucketName string, identifiers []s3types.ObjectIdentifier) error {
+	if len(identifiers) == 0 {
+		return nil
+	}
+	for start := 0; start < len(identifiers); start += 1000 {
+		end := start + 1000
+		if end > len(identifiers) {
+			end = len(identifiers)
+		}
+
+		resp, err := svc.DeleteObjects(ctx, &s3.DeleteObjectsInput{
+			Bucket: aws.String(bucketName),
+			Delete: &s3types.Delete{
+				Objects: identifiers[start:end],
+				Quiet:   aws.Bool(true),
+			},
+		})
+		if err != nil {
+			return err
+		}
+		if len(resp.Errors) > 0 {
+			first := resp.Errors[0]
+			return fmt.Errorf("failed to delete bucket objects: key=%s version=%s code=%s message=%s",
+				aws.ToString(first.Key), aws.ToString(first.VersionId), aws.ToString(first.Code), aws.ToString(first.Message))
 		}
 	}
 	return nil

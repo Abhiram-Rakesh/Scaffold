@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/fatih/color"
@@ -152,6 +153,7 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 
 	// Destroy backend resources
 	bold.Println("\n→ Destroying backend resources...")
+	cleanupErrors := make([]string, 0)
 
 	spinner = ui.NewSpinner("Emptying S3 bucket...")
 	spinner.Start()
@@ -159,6 +161,7 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 	spinner.Stop()
 	if err != nil {
 		yellow.Printf("⚠  Could not empty bucket: %v\n", err)
+		cleanupErrors = append(cleanupErrors, fmt.Sprintf("empty S3 bucket: %v", err))
 	} else {
 		green.Printf("✓ S3 bucket emptied (%d state files deleted)\n", len(cfg.Environments))
 	}
@@ -169,6 +172,7 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 	spinner.Stop()
 	if err != nil {
 		yellow.Printf("⚠  Could not delete bucket: %v\n", err)
+		cleanupErrors = append(cleanupErrors, fmt.Sprintf("delete S3 bucket: %v", err))
 	} else {
 		green.Printf("✓ S3 bucket deleted: %s\n", cfg.Backend.S3Bucket)
 	}
@@ -179,6 +183,7 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 	spinner.Stop()
 	if err != nil {
 		yellow.Printf("⚠  Could not delete table: %v\n", err)
+		cleanupErrors = append(cleanupErrors, fmt.Sprintf("delete DynamoDB table: %v", err))
 	} else {
 		green.Printf("✓ DynamoDB table deleted: %s\n", cfg.Backend.DynamoDBTable)
 	}
@@ -190,13 +195,18 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 		spinner.Stop()
 		if err != nil {
 			yellow.Printf("⚠  Could not schedule KMS deletion: %v\n", err)
+			cleanupErrors = append(cleanupErrors, fmt.Sprintf("schedule KMS deletion: %v", err))
 		} else {
 			green.Println("✓ KMS key scheduled for deletion (7 day waiting period)")
 		}
 	}
 
-	os.RemoveAll(filepath.Dir(".scaffold/config.json"))
-	green.Println("✓ Config deleted: .scaffold/config.json")
+	if err := os.RemoveAll(filepath.Dir(".scaffold/config.json")); err != nil {
+		yellow.Printf("⚠  Could not delete config: %v\n", err)
+		cleanupErrors = append(cleanupErrors, fmt.Sprintf("delete local config: %v", err))
+	} else {
+		green.Println("✓ Config deleted: .scaffold/config.json")
+	}
 
 	// Report orphaned resources
 	if uninstallForce && len(activeEnvs) > 0 {
@@ -222,6 +232,9 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println()
+	if len(cleanupErrors) > 0 {
+		return fmt.Errorf("uninstall completed with cleanup errors:\n  - %s", strings.Join(cleanupErrors, "\n  - "))
+	}
 	green.Println("✓ Scaffold uninstalled successfully")
 	return nil
 }
