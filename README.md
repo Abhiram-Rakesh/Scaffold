@@ -1,27 +1,34 @@
-# 🏗️ Scaffold
+# Scaffold
 
 **Multi-Account Terraform CI/CD Platform**
-
-[![CI](https://github.com/scaffold-tool/scaffold/actions/workflows/ci.yml/badge.svg)](https://github.com/scaffold-tool/scaffold/actions/workflows/ci.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/scaffold-tool/scaffold)](https://goreportcard.com/report/github.com/scaffold-tool/scaffold)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Scaffold is an open-source CLI tool written in Go that bootstraps production-grade, multi-account Terraform CI/CD pipelines using **GitHub Actions**, **centralized S3 remote state**, and **IAM OIDC authentication** — in minutes, not hours.
 
 ---
 
-## ✨ Features
 
-- 🏦 **Centralized State Backend** — One S3 + DynamoDB + KMS backend, many spoke accounts
-- 🔐 **IAM OIDC Authentication** — No long-lived credentials. GitHub Actions assumes roles via federated identity
-- 🔒 **SCP-Compliant** — Uses inline IAM policies to work in restricted AWS Organizations environments
-- 🌐 **Multi-Account** — Dynamically grants cross-account access when you add environments
-- 👁️ **Operational Visibility** — `scaffold status` shows resource inventory, workflow history, and lock status
-- 🔄 **Idempotent** — Safe to re-run. Imports existing resources instead of failing
+## Features
+
+- **Centralized State Backend** — One S3 + DynamoDB + KMS backend, many spoke accounts
+- **IAM OIDC Authentication** — No long-lived credentials. GitHub Actions assumes roles via federated identity
+- **SCP-Compliant** — Uses inline IAM policies to work in restricted AWS Organizations environments
+- **Multi-Account** — Dynamically grants cross-account access when you add environments
+- **Operational Visibility** — `scaffold status` shows resource inventory, workflow history, and lock status
+- **Idempotent** — Safe to re-run. Imports existing resources instead of failing
 
 ---
 
-## ⚡ Quick Start
+## Documentation
+
+- [Getting Started](docs/getting-started.md)
+- [Multi-Account Setup](docs/multi-account.md)
+- [SCP Compliance](docs/scp-compliance.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [Architecture](docs/architecture.md)
+
+---
+
+## Quick Start
 
 ```bash
 # 1. Install
@@ -41,11 +48,11 @@ git add . && git commit -m "feat: add staging environment"
 git push origin develop
 ```
 
-Terraform runs automatically via GitHub Actions on every push. ✅
+Terraform runs automatically via GitHub Actions on every push.
 
 ---
 
-## 📦 Installation
+## Installation
 
 ### Quick Install (recommended)
 ```bash
@@ -73,11 +80,11 @@ make install
 
 ---
 
-## 🏛️ Architecture
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     GitHub Repository                        │
+│                     GitHub Repository                       │
 │                                                             │
 │  .github/workflows/                                         │
 │  ├── terraform-staging.yaml    (auto-generated)             │
@@ -103,19 +110,19 @@ make install
        └────────────────┼────────────────┘
                         │ Cross-account S3/DynamoDB/KMS access
                         ▼
-             ┌──────────────────┐
+             ┌───────────────────┐
              │  Platform Account │
-             │   111111111111   │
-             │                  │
-             │  S3:  tf-state-* │  ← Centralized state
-             │  DDB: tf-lock-*  │  ← State locking
-             │  KMS: Key        │  ← Encryption
-             └──────────────────┘
+             │   111111111111    │
+             │                   │
+             │  S3:  tf-state-*  │  ← Centralized state
+             │  DDB: tf-lock-*   │  ← State locking
+             │  KMS: Key         │  ← Encryption
+             └───────────────────┘
 ```
 
 ---
 
-## 📖 Commands
+## Commands
 
 ### `scaffold init`
 Bootstrap the centralized Terraform state backend in your platform account.
@@ -189,7 +196,7 @@ scaffold uninstall --force   # Extremely dangerous — orphans resources
 
 ---
 
-## 🔐 AWS Authentication
+## AWS Authentication
 
 Scaffold supports three credential methods:
 
@@ -203,7 +210,7 @@ Credentials are **never stored** in `.scaffold/config.json`. They're used only f
 
 ---
 
-## 🏦 Multi-Account Setup
+## Multi-Account Setup
 
 ### Account Model
 - **Platform account** — Hosts S3 + DynamoDB + KMS backend. You need admin access here once for `scaffold init`.
@@ -221,7 +228,7 @@ See [docs/multi-account.md](docs/multi-account.md) for detailed guidance.
 
 ---
 
-## 🗂️ Configuration File
+## Configuration File
 
 `.scaffold/config.json` is committed to your repository and tracks all Scaffold state.
 
@@ -258,7 +265,7 @@ See [docs/multi-account.md](docs/multi-account.md) for detailed guidance.
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### "Error: no identity-based policy allows the sts:AssumeRoleWithWebIdentity action"
 The OIDC trust policy doesn't match the GitHub sub claim. Check the Debug OIDC Token step in your workflow — the `sub` claim must match one of:
@@ -280,7 +287,7 @@ See [docs/troubleshooting.md](docs/troubleshooting.md) for more.
 
 ---
 
-## 🛠️ Development
+## Development
 
 ```bash
 # Clone
@@ -299,29 +306,9 @@ make test
 # Lint
 make lint
 ```
-
-### Project Structure
-```
-scaffold/
-├── cmd/scaffold/          # CLI entry point
-├── internal/
-│   ├── aws/               # AWS SDK wrappers (S3, DynamoDB, KMS, IAM)
-│   ├── commands/          # Cobra command implementations
-│   ├── config/            # Config file management
-│   ├── github/            # GitHub API client
-│   ├── terraform/         # Terraform runner + template generation
-│   └── ui/                # Interactive prompts + terminal UI
-├── pkg/version/           # Version info (set at build time)
-├── templates/terraform/   # Terraform module templates
-│   ├── backend/           # S3 + DynamoDB + KMS module
-│   └── iam/               # GitHub Actions OIDC role module
-├── scripts/install.sh     # Installer script
-└── docs/                  # Additional documentation
-```
-
 ---
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feat/my-feature`
@@ -332,17 +319,3 @@ scaffold/
 Please read [CONTRIBUTING.md](CONTRIBUTING.md) for code style and PR guidelines.
 
 ---
-
-## 📄 License
-
-MIT License — see [LICENSE](LICENSE) for details.
-
----
-
-## 📚 Documentation
-
-- [Getting Started](docs/getting-started.md)
-- [Multi-Account Setup](docs/multi-account.md)
-- [SCP Compliance](docs/scp-compliance.md)
-- [Troubleshooting](docs/troubleshooting.md)
-- [Architecture](docs/architecture.md)
