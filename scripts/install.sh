@@ -2,9 +2,9 @@
 set -euo pipefail
 
 # Scaffold Installation Script
-# Usage: curl -sSL https://scaffold.sh/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/Abhiram-Rakesh/Scaffold/main/scripts/install.sh | bash
 
-REPO="scaffold-tool/scaffold"
+REPO="${SCAFFOLD_REPO:-Abhiram-Rakesh/Scaffold}"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 BINARY_NAME="scaffold"
 

@@ -25,7 +25,7 @@ Scaffold is an open-source CLI tool written in Go that bootstraps production-gra
 
 ```bash
 # 1. Install
-curl -sSL https://scaffold.sh/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Abhiram-Rakesh/Scaffold/main/scripts/install.sh | bash
 
 # 2. Navigate to your infrastructure repo
 cd your-infra-repo
@@ -49,7 +49,7 @@ Terraform runs automatically via GitHub Actions on every push. ✅
 
 ### Quick Install (recommended)
 ```bash
-curl -sSL https://scaffold.sh/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Abhiram-Rakesh/Scaffold/main/scripts/install.sh | bash
 ```
 
 ### Manual Download
@@ -57,8 +57,9 @@ Download the latest binary for your platform from [GitHub Releases](https://gith
 
 ```bash
 # Linux amd64
-curl -sSfL https://github.com/scaffold-tool/scaffold/releases/latest/download/scaffold_linux_amd64.tar.gz | tar -xz
-sudo mv scaffold /usr/local/bin/
+VERSION="$(curl -sSf https://api.github.com/repos/Abhiram-Rakesh/Scaffold/releases/latest | grep '\"tag_name\"' | sed -E 's/.*\"v([^\"]+)\".*/\\1/')"
+curl -sSfL "https://github.com/Abhiram-Rakesh/Scaffold/releases/download/v${VERSION}/scaffold_${VERSION}_linux_amd64.tar.gz" | tar -xz
+sudo install -m 0755 scaffold /usr/local/bin/scaffold
 ```
 
 ### Build from Source

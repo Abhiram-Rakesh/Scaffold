@@ -77,7 +77,7 @@ release:
     ## Installation
 
     ```bash
-    curl -sSL https://scaffold.sh/install.sh | bash
+    curl -fsSL https://raw.githubusercontent.com/Abhiram-Rakesh/Scaffold/main/scripts/install.sh | bash
     ```
 
     **Full Changelog**: https://github.com/scaffold-tool/scaffold/compare/{{ .PreviousTag }}...{{ .Tag }}
